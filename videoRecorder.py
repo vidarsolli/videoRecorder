@@ -14,9 +14,12 @@ recColor = False
 recDepth = False
 width = 0
 height = 1
+# Possible frame rate: 6, 15, 30, 60
 frameRate = 30
 showImage = True
+# Possible resolutions: 320x180, 320x240, 424x240, 640x360, 640x480, 848x480, 960x540, 1280x720, 1920x1080
 colorRes = [640, 480]
+# Possibe resolutions: 424x240, 480x270, 640x360, 640x400, 640x480, 848x100, 848x480, 1280x720, 1280x800
 depthRes = [640, 480]
 
 filenameExt = ""
@@ -29,8 +32,12 @@ config = rs.config()
 print("videoRecorder records the selected video channels to .wav files")
 print("Default parameters can be changed by a json file.")
 print("Usage: %s -i json_file" % sys.argv[0])
-print("Hit 's' to start recording, press 'q' to stop and exit program")
-print(" ")
+print("Commands:")
+print("'s' start recording")
+print("'h' halt recording")
+print("'v' toggle image view")
+print("'q' to stop and exit program")
+print("----------------------------------------------------")
 
 # Get the input json file
 try:
@@ -74,7 +81,7 @@ config = rs.config()
 ts = time.time()
 timestep = re.split('[ .]', str(ts))
 t = datetime.now()
-filenameExt = str(t.year) + str(t.month) + str(t.day) + str(t.hour) + str(t.minute) + timestep[0]
+filenameExt = str(t.year) + "-" + str(t.month) + "-" + str(t.day) + "-" + str(t.hour) + "-" + str(t.minute) + "-" + timestep[0]
 
 if recColor:
     config.enable_stream(rs.stream.color, colorRes[width], colorRes[height], rs.format.bgr8, frameRate)
@@ -90,6 +97,7 @@ if recDepth:
     outDepth = cv2.VideoWriter("./records/" + "depth" + filenameExt + ".avi", cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'),frameRate, (depthRes[width], depthRes[height]))
 
 frameCount = 0
+recordStartTime = 0
 ts = time.time()
 cv2.namedWindow('Video recorder', cv2.WINDOW_AUTOSIZE)
 
@@ -122,7 +130,9 @@ try:
                 outDepth.write(depth_colormap)
         if recording:
             frameCount +=1
+            frameRate = frameCount/(time.time()-recordStartTime)
             font = cv2.FONT_HERSHEY_SIMPLEX
+            cv2.putText(color_image, "FrameRate"+str(frameRate), (10, 350), font, 1, (0, 255, 0), 2, cv2.LINE_AA)
             cv2.putText(color_image, 'RECORDING', (10, 450), font, 3, (0, 0, 255), 2, cv2.LINE_AA)
         else:
             font = cv2.FONT_HERSHEY_SIMPLEX
@@ -144,16 +154,26 @@ try:
         key = chr(cv2.waitKey(1) & 0xFF)
         if key == "s":
             print("Recording started")
+            recordStartTime = time.time()
+            frameCount = 0
             recording = True
         if key == "q":
             print("Recording stopped")
             recording = False
+            frameRate = frameCount / (time.time() - recordStartTime)
         if key == "h":
             print("Recording halted")
             recording = False
+        if key == "v":
+            if showImage:
+                print("Viewing halted")
+                showImage = False
+            else:
+                print("Viewing started")
+                showImage = True
 
 finally:
-    print("Frame count: ",frameCount)
+    print("Frame rate: ",frameRate)
     # Stop streaming
     pipeline.stop()
 

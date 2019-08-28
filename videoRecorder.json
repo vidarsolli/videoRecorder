@@ -1,0 +1,15 @@
+{
+  "_comment":"Use Yes or No when enabling or disabling options",
+  "Color":"Yes",
+  "Depth":"Yes",
+  "Audio":"Yes",
+  "ColorWidth": 640,
+  "ColorHeight": 480,
+  "DepthWidth": 640,
+  "DepthHeight": 480,
+  "FrameRate": 15,
+  "ShowImage": "No",
+  "AudioFs": 44100,
+  "AudioDevice": "USB Audio Device",
+  "AudioChannels": 1
+}
