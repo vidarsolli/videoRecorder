@@ -100,6 +100,7 @@ frameCount = 0
 recordStartTime = 0
 ts = time.time()
 cv2.namedWindow('Video recorder', cv2.WINDOW_AUTOSIZE)
+key = 0
 
 try:
     key = chr(cv2.waitKey(1) & 0xFF)
@@ -124,10 +125,13 @@ try:
             depth_image = np.asanyarray(depth_frame.get_data())
 
             # Apply colormap on depth image (image must be converted to 8-bit per pixel first)
-            depth_colormap = cv2.applyColorMap(cv2.convertScaleAbs(depth_image, alpha=0.03), cv2.COLORMAP_JET)
+            depth_GrayscaleImage = np.zeros((depthRes[height], depthRes[width], 3), dtype=np.uint8)
+            depth_GrayscaleImage[:,:,0]=depth_image/256
+            depth_GrayscaleImage[:,:,1]=depth_image%256
+            depth_colormap = cv2.applyColorMap(cv2.convertScaleAbs(depth_image, alpha=0.03), cv2.COLORMAP_HOT)
 
             if recording:
-                outDepth.write(depth_colormap)
+                outDepth.write(depth_GrayscaleImage)
         if recording:
             frameCount +=1
             frameRate = frameCount/(time.time()-recordStartTime)
