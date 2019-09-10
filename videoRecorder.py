@@ -99,12 +99,11 @@ if recDepth:
 frameCount = 0
 recordStartTime = 0
 ts = time.time()
-cv2.namedWindow('Video recorder', cv2.WINDOW_AUTOSIZE)
 key = 0
+
 
 try:
     key = chr(cv2.waitKey(1) & 0xFF)
-
     while key != 'q' and key != 'Q':
         # Press esc or 'q' to close the image window
         # Wait for a coherent pair of frames: depth and color
@@ -152,10 +151,10 @@ try:
                 images = color_image
 
         # Show images
+        key = chr(cv2.waitKey(1) & 0xFF)
         if showImage:
             cv2.imshow('Video Recorder', images)
 
-        key = chr(cv2.waitKey(1) & 0xFF)
         if key == "s":
             print("Recording started")
             recordStartTime = time.time()
@@ -169,6 +168,7 @@ try:
             print("Recording halted")
             recording = False
         if key == "v":
+            cv2.namedWindow('Video recorder', cv2.WINDOW_AUTOSIZE)
             if showImage:
                 print("Viewing halted")
                 showImage = False

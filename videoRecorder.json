@@ -8,7 +8,7 @@
   "DepthWidth": 640,
   "DepthHeight": 480,
   "FrameRate": 15,
-  "ShowImage": "No",
+  "ShowImage": "Yes",
   "AudioFs": 44100,
   "AudioDevice": "USB Audio Device",
   "AudioChannels": 1
