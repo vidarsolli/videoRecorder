@@ -6,7 +6,7 @@ from datetime import datetime
 import numpy as np
 import time
 import re
-
+import zmq
 
 
 #default configuration parameters
@@ -25,6 +25,13 @@ depthRes = [640, 480]
 filenameExt = ""
 jsonInFile = ""
 recording = False
+
+port = "5556"
+context = zmq.Context()
+socket = context.socket(zmq.SUB)
+socket.setsockopt_string(zmq.SUBSCRIBE, "")
+socket.connect("tcp://localhost:%s" % port)
+
 
 pipeline = rs.pipeline()
 config = rs.config()
@@ -152,6 +159,17 @@ try:
 
         # Show images
         key = chr(cv2.waitKey(1) & 0xFF)
+        try:
+            msg = socket.recv_json(flags=zmq.NOBLOCK)
+            jsonMsg = json.loads(msg)
+            print(jsonMsg)
+            for a in jsonMsg:
+                print("clien received message, a = ", a)
+                if a == "Cmd":
+                    key = jsonMsg[a]
+        except zmq.ZMQError as e:
+            pass
+
         if showImage:
             cv2.imshow('Video Recorder', images)
 
@@ -188,3 +206,8 @@ finally:
 
     # Closes all the frames
     cv2.destroyAllWindows()
+
+    # Close the ZeroMQ socket
+    socket.close()
+    
+    sys.exit(0)
