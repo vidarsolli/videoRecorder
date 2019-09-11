@@ -88,7 +88,7 @@ config = rs.config()
 ts = time.time()
 timestep = re.split('[ .]', str(ts))
 t = datetime.now()
-filenameExt = str(t.year) + "-" + str(t.month) + "-" + str(t.day) + "-" + str(t.hour) + "-" + str(t.minute) + "-" + timestep[0]
+filenameExt = str(t.year) + "-" + str(t.month) + "-" + str(t.day) + "-" + str(t.hour) + "-" + str(t.minute) + "-" + str(t.second)
 
 if recColor:
     config.enable_stream(rs.stream.color, colorRes[width], colorRes[height], rs.format.bgr8, frameRate)
@@ -141,12 +141,14 @@ try:
         if recording:
             frameCount +=1
             frameRate = frameCount/(time.time()-recordStartTime)
-            font = cv2.FONT_HERSHEY_SIMPLEX
-            cv2.putText(color_image, "FrameRate"+str(frameRate), (10, 350), font, 1, (0, 255, 0), 2, cv2.LINE_AA)
-            cv2.putText(color_image, 'RECORDING', (10, 450), font, 3, (0, 0, 255), 2, cv2.LINE_AA)
+            if showImage:
+                font = cv2.FONT_HERSHEY_SIMPLEX
+                cv2.putText(color_image, "FrameRate"+str(frameRate), (10, 350), font, 1, (0, 255, 0), 2, cv2.LINE_AA)
+                cv2.putText(color_image, 'RECORDING', (10, 450), font, 3, (0, 0, 255), 2, cv2.LINE_AA)
         else:
-            font = cv2.FONT_HERSHEY_SIMPLEX
-            cv2.putText(color_image, 'PAUSE', (10, 450), font, 3, (0, 255, 0), 2, cv2.LINE_AA)
+            if showImage:
+                font = cv2.FONT_HERSHEY_SIMPLEX
+                cv2.putText(color_image, 'PAUSE', (10, 450), font, 3, (0, 255, 0), 2, cv2.LINE_AA)
 
         # Stack both images horizontally
         if recDepth and recColor:
@@ -209,5 +211,5 @@ finally:
 
     # Close the ZeroMQ socket
     socket.close()
-    
+
     sys.exit(0)
