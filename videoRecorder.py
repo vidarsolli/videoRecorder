@@ -14,6 +14,8 @@ recColor = False
 recDepth = False
 width = 0
 height = 1
+alignOn = False
+
 # Possible frame rate: 6, 15, 30, 60
 frameRate = 30
 showImage = True
@@ -62,6 +64,9 @@ with open(jsonInFile) as jsonFile:
     recordConfig = json.load(jsonFile)
 # Update  configuration parameters
 for a in recordConfig:
+    if a == "Align":
+        if (recordConfig["Align"] == "Yes"):
+            alignOn = True
     if a == "Color":
         if (recordConfig["Color"] == "Yes"):
             recColor = True
@@ -85,6 +90,14 @@ for a in recordConfig:
 # Configure depth and color streams
 pipeline = rs.pipeline()
 config = rs.config()
+
+# Create an align object
+# rs.align allows us to perform alignment of depth frames to others frames
+# The "align_to" is the stream type to which we plan to align depth frames.
+if alignOn:
+    align_to = rs.stream.color
+    align = rs.align(align_to)
+
 ts = time.time()
 timestep = re.split('[ .]', str(ts))
 t = datetime.now()
@@ -94,14 +107,13 @@ if recColor:
     config.enable_stream(rs.stream.color, colorRes[width], colorRes[height], rs.format.bgr8, frameRate)
 if recDepth:
     config.enable_stream(rs.stream.depth, depthRes[width], depthRes[height], rs.format.z16, frameRate)
-#config.enable_record_to_file("Testfile.bag")
 # Start streaming
 pipeline.start(config)
-# Define the codec and create VideoWriter object.The output is stored in 'outpy.avi' file.
+# Define the codec and create VideoWriter object.
 if recColor:
     outColor = cv2.VideoWriter("./records/" + "color" + filenameExt + ".avi", cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'),frameRate, (colorRes[width], colorRes[height]))
 if recDepth:
-    outDepth = cv2.VideoWriter("./records/" + "depth" + filenameExt + ".avi", cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'),frameRate, (depthRes[width], depthRes[height]))
+    outDepth = cv2.VideoWriter("./records/" + "depth" + filenameExt + ".avi", cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'), frameRate, (depthRes[width], depthRes[height]))
 
 frameCount = 0
 recordStartTime = 0
@@ -115,8 +127,15 @@ try:
         # Press esc or 'q' to close the image window
         # Wait for a coherent pair of frames: depth and color
         frames = pipeline.wait_for_frames()
+        if alignOn:
+            # Align the depth frame to color frame
+            aligned_frames = align.process(frames)
+
         if recColor:
-            color_frame = frames.get_color_frame()
+            if alignOn:
+                color_frame = aligned_frames.get_color_frame()
+            else:
+                color_frame = frames.get_color_frame()
             if not color_frame:
                 continue
             # Convert images to numpy arrays
@@ -124,7 +143,10 @@ try:
             if recording:
                 outColor.write(color_image)
         if recDepth:
-            depth_frame = frames.get_depth_frame()
+            if alignOn:
+                depth_frame = aligned_frames.get_depth_frame()
+            else:
+                depth_frame = frames.get_depth_frame()
             if not depth_frame:
                 continue
             # Convert images to numpy arrays
@@ -134,7 +156,6 @@ try:
             depth_GrayscaleImage = np.zeros((depthRes[height], depthRes[width], 3), dtype=np.uint8)
             depth_GrayscaleImage[:,:,0]=depth_image/256
             depth_GrayscaleImage[:,:,1]=depth_image%256
-            depth_colormap = cv2.applyColorMap(cv2.convertScaleAbs(depth_image, alpha=0.03), cv2.COLORMAP_HOT)
 
             if recording:
                 outDepth.write(depth_GrayscaleImage)
@@ -150,14 +171,6 @@ try:
                 font = cv2.FONT_HERSHEY_SIMPLEX
                 cv2.putText(color_image, 'PAUSE', (10, 450), font, 3, (0, 255, 0), 2, cv2.LINE_AA)
 
-        # Stack both images horizontally
-        if recDepth and recColor:
-            images = np.hstack((color_image, depth_colormap))
-        else:
-            if recDepth:
-                images = depth_colormap
-            else:
-                images = color_image
 
         # Show images
         key = chr(cv2.waitKey(1) & 0xFF)
@@ -173,6 +186,16 @@ try:
             pass
 
         if showImage:
+            # Stack both images horizontally
+            depth_colormap = cv2.applyColorMap(cv2.convertScaleAbs(depth_image, alpha=0.03), cv2.COLORMAP_HOT)
+            if recDepth and recColor:
+                images = np.hstack((color_image, depth_colormap))
+            else:
+                if recDepth:
+                    images = depth_colormap
+                else:
+                    images = color_image
+
             cv2.imshow('Video Recorder', images)
 
         if key == "s":

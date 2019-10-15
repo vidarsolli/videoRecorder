@@ -1,5 +1,6 @@
 {
   "_comment":"Use Yes or No when enabling or disabling options",
+  "Align":"No",
   "Color":"Yes",
   "Depth":"Yes",
   "Audio":"Yes",
