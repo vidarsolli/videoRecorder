@@ -109,6 +109,23 @@ if recDepth:
     config.enable_stream(rs.stream.depth, depthRes[width], depthRes[height], rs.format.z16, frameRate)
 # Start streaming
 pipeline.start(config)
+# Get transformation data
+frames = pipeline.wait_for_frames()
+depth_frame = frames.get_depth_frame()
+color_frame = frames.get_color_frame()
+# Intrinsics & Extrinsics
+depth_intrin = depth_frame.profile.as_video_stream_profile().intrinsics
+color_intrin = color_frame.profile.as_video_stream_profile().intrinsics
+depth_to_color_extrin = depth_frame.profile.get_extrinsics_to(color_frame.profile)
+color_to_depth_extrin = color_frame.profile.get_extrinsics_to(depth_frame.profile)
+print("Depth intrinsics: ", depth_intrin)
+print("Color_intrinsics: ", color_intrin)
+print("Depth_to_color_extrin: ", depth_to_color_extrin)
+print("color_to_depth_extrin: ", color_to_depth_extrin)
+# Depth scale - units of the values inside a depth frame, i.e how to convert the value to units of 1 meter
+depth_sensor = pipe_profile.get_device().first_depth_sensor()
+depth_scale = depth_sensor.get_depth_scale()
+print("Depth scale:", depth_scale)
 # Define the codec and create VideoWriter object.
 if recColor:
     outColor = cv2.VideoWriter("./records/" + "color" + filenameExt + ".avi", cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'),frameRate, (colorRes[width], colorRes[height]))
