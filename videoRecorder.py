@@ -98,17 +98,13 @@ if alignOn:
     align_to = rs.stream.color
     align = rs.align(align_to)
 
-ts = time.time()
-timestep = re.split('[ .]', str(ts))
-t = datetime.now()
-filenameExt = str(t.year) + "-" + str(t.month) + "-" + str(t.day) + "-" + str(t.hour) + "-" + str(t.minute) + "-" + str(t.second)
 
 if recColor:
     config.enable_stream(rs.stream.color, colorRes[width], colorRes[height], rs.format.bgr8, frameRate)
 if recDepth:
     config.enable_stream(rs.stream.depth, depthRes[width], depthRes[height], rs.format.z16, frameRate)
 # Start streaming
-pipeline.start(config)
+pipeProfile = pipeline.start(config)
 # Get transformation data
 frames = pipeline.wait_for_frames()
 depth_frame = frames.get_depth_frame()
@@ -123,24 +119,23 @@ print("Color_intrinsics: ", color_intrin)
 print("Depth_to_color_extrin: ", depth_to_color_extrin)
 print("color_to_depth_extrin: ", color_to_depth_extrin)
 # Depth scale - units of the values inside a depth frame, i.e how to convert the value to units of 1 meter
-depth_sensor = pipe_profile.get_device().first_depth_sensor()
+depth_sensor = pipeProfile.get_device().first_depth_sensor()
 depth_scale = depth_sensor.get_depth_scale()
 print("Depth scale:", depth_scale)
 # Define the codec and create VideoWriter object.
-if recColor:
-    outColor = cv2.VideoWriter("./records/" + "color" + filenameExt + ".avi", cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'),frameRate, (colorRes[width], colorRes[height]))
-if recDepth:
-    outDepth = cv2.VideoWriter("./records/" + "depth" + filenameExt + ".avi", cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'), frameRate, (depthRes[width], depthRes[height]))
-
 frameCount = 0
 recordStartTime = 0
 ts = time.time()
 key = 0
 
+if alignOn:
+    depth_GrayscaleImage = np.zeros((colorRes[height], colorRes[width], 3), dtype=np.uint8)
+else:
+    depth_GrayscaleImage = np.zeros((depthRes[height], depthRes[width], 3), dtype=np.uint8)
 
 try:
     key = chr(cv2.waitKey(1) & 0xFF)
-    while key != 'q' and key != 'Q':
+    while key != 'c' and key != 'C':
         # Press esc or 'q' to close the image window
         # Wait for a coherent pair of frames: depth and color
         frames = pipeline.wait_for_frames()
@@ -159,6 +154,7 @@ try:
             color_image = np.asanyarray(color_frame.get_data())
             if recording:
                 outColor.write(color_image)
+
         if recDepth:
             if alignOn:
                 depth_frame = aligned_frames.get_depth_frame()
@@ -170,7 +166,6 @@ try:
             depth_image = np.asanyarray(depth_frame.get_data())
 
             # Apply colormap on depth image (image must be converted to 8-bit per pixel first)
-            depth_GrayscaleImage = np.zeros((depthRes[height], depthRes[width], 3), dtype=np.uint8)
             depth_GrayscaleImage[:,:,0]=depth_image/256
             depth_GrayscaleImage[:,:,1]=depth_image%256
 
@@ -187,7 +182,6 @@ try:
             if showImage:
                 font = cv2.FONT_HERSHEY_SIMPLEX
                 cv2.putText(color_image, 'PAUSE', (10, 450), font, 3, (0, 255, 0), 2, cv2.LINE_AA)
-
 
         # Show images
         key = chr(cv2.waitKey(1) & 0xFF)
@@ -206,7 +200,8 @@ try:
             # Stack both images horizontally
             depth_colormap = cv2.applyColorMap(cv2.convertScaleAbs(depth_image, alpha=0.03), cv2.COLORMAP_HOT)
             if recDepth and recColor:
-                images = np.hstack((color_image, depth_colormap))
+                #images = np.hstack((color_image, depth_colormap))
+                images = color_image
             else:
                 if recDepth:
                     images = depth_colormap
@@ -217,6 +212,25 @@ try:
 
         if key == "s":
             print("Recording started")
+            ts = time.time()
+            timestep = re.split('[ .]', str(ts))
+            t = datetime.now()
+            filenameExt = str(t.year) + "-" + str(t.month) + "-" + str(t.day) + "-" + str(t.hour) + "-" + str(
+                t.minute) + "-" + str(t.second)
+            if recColor:
+                outColor = cv2.VideoWriter("../../recordings/" + "color" + filenameExt + ".avi",
+                                           cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'), frameRate,
+                                           (colorRes[width], colorRes[height]))
+            if recDepth:
+                if alignOn:
+                    outDepth = cv2.VideoWriter("../../recordings/" + "depth" + filenameExt + ".avi",
+                                               cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'), frameRate,
+                                               (colorRes[width], colorRes[height]))
+                else:
+                    outDepth = cv2.VideoWriter("../../recordings/" + "depth" + filenameExt + ".avi",
+                                               cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'), frameRate,
+                                               (depthRes[width], depthRes[height]))
+
             recordStartTime = time.time()
             frameCount = 0
             recording = True
@@ -235,6 +249,8 @@ try:
             else:
                 print("Viewing started")
                 showImage = True
+except:
+    print("Exception in the main loop", sys.exc_info()[0])
 
 finally:
     print("Frame rate: ",frameRate)
