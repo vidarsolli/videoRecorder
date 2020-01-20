@@ -7,6 +7,8 @@ import numpy as np
 import time
 import re
 import zmq
+#import skvideo.io
+
 
 
 #default configuration parameters
@@ -15,6 +17,8 @@ recDepth = False
 width = 0
 height = 1
 alignOn = False
+color_file = None
+depth_file = None
 
 # Possible frame rate: 6, 15, 30, 60
 frameRate = 30
@@ -110,14 +114,16 @@ frames = pipeline.wait_for_frames()
 depth_frame = frames.get_depth_frame()
 color_frame = frames.get_color_frame()
 # Intrinsics & Extrinsics
+"""
 depth_intrin = depth_frame.profile.as_video_stream_profile().intrinsics
-color_intrin = color_frame.profile.as_video_stream_profile().intrinsics
 depth_to_color_extrin = depth_frame.profile.get_extrinsics_to(color_frame.profile)
+color_intrin = color_frame.profile.as_video_stream_profile().intrinsics
 color_to_depth_extrin = color_frame.profile.get_extrinsics_to(depth_frame.profile)
 print("Depth intrinsics: ", depth_intrin)
 print("Color_intrinsics: ", color_intrin)
 print("Depth_to_color_extrin: ", depth_to_color_extrin)
 print("color_to_depth_extrin: ", color_to_depth_extrin)
+"""
 # Depth scale - units of the values inside a depth frame, i.e how to convert the value to units of 1 meter
 depth_sensor = pipeProfile.get_device().first_depth_sensor()
 depth_scale = depth_sensor.get_depth_scale()
@@ -128,144 +134,139 @@ recordStartTime = 0
 ts = time.time()
 key = 0
 
-if alignOn:
-    depth_GrayscaleImage = np.zeros((colorRes[height], colorRes[width], 3), dtype=np.uint8)
-else:
-    depth_GrayscaleImage = np.zeros((depthRes[height], depthRes[width], 3), dtype=np.uint8)
+key = chr(cv2.waitKey(1) & 0xFF)
+while key != 'c' and key != 'C':
+    # Press esc or 'q' to close the image window
+    # Wait for a coherent pair of frames: depth and color
+    frames = pipeline.wait_for_frames()
+    if alignOn:
+        # Align the depth frame to color frame
+        aligned_frames = align.process(frames)
 
-try:
-    key = chr(cv2.waitKey(1) & 0xFF)
-    while key != 'c' and key != 'C':
-        # Press esc or 'q' to close the image window
-        # Wait for a coherent pair of frames: depth and color
-        frames = pipeline.wait_for_frames()
+    if recColor:
         if alignOn:
-            # Align the depth frame to color frame
-            aligned_frames = align.process(frames)
-
-        if recColor:
-            if alignOn:
-                color_frame = aligned_frames.get_color_frame()
-            else:
-                color_frame = frames.get_color_frame()
-            if not color_frame:
-                continue
-            # Convert images to numpy arrays
-            color_image = np.asanyarray(color_frame.get_data())
-            if recording:
-                outColor.write(color_image)
-
-        if recDepth:
-            if alignOn:
-                depth_frame = aligned_frames.get_depth_frame()
-            else:
-                depth_frame = frames.get_depth_frame()
-            if not depth_frame:
-                continue
-            # Convert images to numpy arrays
-            depth_image = np.asanyarray(depth_frame.get_data())
-
-            # Apply colormap on depth image (image must be converted to 8-bit per pixel first)
-            depth_GrayscaleImage[:,:,0]=depth_image/256
-            depth_GrayscaleImage[:,:,1]=depth_image%256
-
-            if recording:
-                outDepth.write(depth_GrayscaleImage)
-        if recording:
-            frameCount +=1
-            frameRate = frameCount/(time.time()-recordStartTime)
-            if showImage:
-                font = cv2.FONT_HERSHEY_SIMPLEX
-                cv2.putText(color_image, "FrameRate"+str(frameRate), (10, 350), font, 1, (0, 255, 0), 2, cv2.LINE_AA)
-                cv2.putText(color_image, 'RECORDING', (10, 450), font, 3, (0, 0, 255), 2, cv2.LINE_AA)
+            color_frame = aligned_frames.get_color_frame()
         else:
-            if showImage:
-                font = cv2.FONT_HERSHEY_SIMPLEX
-                cv2.putText(color_image, 'PAUSE', (10, 450), font, 3, (0, 255, 0), 2, cv2.LINE_AA)
-
-        # Show images
-        key = chr(cv2.waitKey(1) & 0xFF)
-        try:
-            msg = socket.recv_json(flags=zmq.NOBLOCK)
-            jsonMsg = json.loads(msg)
-            print(jsonMsg)
-            for a in jsonMsg:
-                print("clien received message, a = ", a)
-                if a == "Cmd":
-                    key = jsonMsg[a]
-        except zmq.ZMQError as e:
-            pass
-
-        if showImage:
-            # Stack both images horizontally
-            depth_colormap = cv2.applyColorMap(cv2.convertScaleAbs(depth_image, alpha=0.03), cv2.COLORMAP_HOT)
-            if recDepth and recColor:
-                #images = np.hstack((color_image, depth_colormap))
-                images = color_image
-            else:
-                if recDepth:
-                    images = depth_colormap
-                else:
-                    images = color_image
-
-            cv2.imshow('Video Recorder', images)
-
-        if key == "s":
-            print("Recording started")
-            ts = time.time()
-            timestep = re.split('[ .]', str(ts))
-            t = datetime.now()
-            filenameExt = str(t.year) + "-" + str(t.month) + "-" + str(t.day) + "-" + str(t.hour) + "-" + str(
-                t.minute) + "-" + str(t.second)
-            if recColor:
-                outColor = cv2.VideoWriter("../../recordings/" + "color" + filenameExt + ".avi",
-                                           cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'), frameRate,
-                                           (colorRes[width], colorRes[height]))
-            if recDepth:
-                if alignOn:
-                    outDepth = cv2.VideoWriter("../../recordings/" + "depth" + filenameExt + ".avi",
-                                               cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'), frameRate,
-                                               (colorRes[width], colorRes[height]))
-                else:
-                    outDepth = cv2.VideoWriter("../../recordings/" + "depth" + filenameExt + ".avi",
-                                               cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'), frameRate,
-                                               (depthRes[width], depthRes[height]))
-
-            recordStartTime = time.time()
-            frameCount = 0
-            recording = True
-        if key == "q":
-            print("Recording stopped")
-            recording = False
-            frameRate = frameCount / (time.time() - recordStartTime)
-        if key == "h":
-            print("Recording halted")
-            recording = False
-        if key == "v":
-            cv2.namedWindow('Video recorder', cv2.WINDOW_AUTOSIZE)
-            if showImage:
-                print("Viewing halted")
-                showImage = False
-            else:
-                print("Viewing started")
-                showImage = True
-except:
-    print("Exception in the main loop", sys.exc_info()[0])
-
-finally:
-    print("Frame rate: ",frameRate)
-    # Stop streaming
-    pipeline.stop()
+            color_frame = frames.get_color_frame()
+        if not color_frame:
+            continue
+        # Convert images to numpy arrays
+        data = color_frame.get_data()
+        color_image = np.asanyarray(color_frame.get_data(), dtype="uint8")
+        if recording:
+            color_file.write(color_image)
+            outColor.write(color_image)
 
     if recDepth:
-        outDepth.release()
-    if recColor:
-        outColor.release()
+        if alignOn:
+            depth_frame = aligned_frames.get_depth_frame()
+        else:
+            depth_frame = frames.get_depth_frame()
+        if not depth_frame:
+            continue
+        # Convert images to numpy arrays
+        depth_image = np.asanyarray(depth_frame.get_data(), dtype="uint16")
 
-    # Closes all the frames
-    cv2.destroyAllWindows()
+        if recording:
+            depth_file.write(depth_image)
+            #outDepth.write(depth_GrayscaleImage)
+    if recording:
+        frameCount +=1
+        frameRate = frameCount/(time.time()-recordStartTime)
+        if showImage:
+            font = cv2.FONT_HERSHEY_SIMPLEX
+            cv2.putText(color_image, "FrameRate"+str(frameRate), (10, 350), font, 1, (0, 255, 0), 2, cv2.LINE_AA)
+            cv2.putText(color_image, 'RECORDING', (10, 450), font, 3, (0, 0, 255), 2, cv2.LINE_AA)
+    else:
+        if showImage:
+            font = cv2.FONT_HERSHEY_SIMPLEX
+            cv2.putText(color_image, 'PAUSE', (10, 450), font, 3, (0, 255, 0), 2, cv2.LINE_AA)
 
-    # Close the ZeroMQ socket
-    socket.close()
+    # Show images
+    key = chr(cv2.waitKey(1) & 0xFF)
+    try:
+        msg = socket.recv_json(flags=zmq.NOBLOCK)
+        jsonMsg = json.loads(msg)
+        print(jsonMsg)
+        for a in jsonMsg:
+            print("clien received message, a = ", a)
+            if a == "Cmd":
+                key = jsonMsg[a]
+    except zmq.ZMQError as e:
+        pass
 
-    sys.exit(0)
+    if showImage:
+        # Stack both images horizontally
+        depth_colormap = cv2.applyColorMap(cv2.convertScaleAbs(depth_image, alpha=0.03), cv2.COLORMAP_HOT)
+        if recDepth and recColor:
+            #images = np.hstack((color_image, depth_colormap))
+            images = color_image
+        else:
+            if recDepth:
+                images = depth_colormap
+            else:
+                images = color_image
+
+        cv2.imshow('Video Recorder', images)
+
+    if key == "s":
+        print("Recording started")
+        ts = time.time()
+        timestep = re.split('[ .]', str(ts))
+        t = datetime.now()
+        filenameExt = str(t.year) + "-" + str(t.month) + "-" + str(t.day) + "-" + str(t.hour) + "-" + str(
+            t.minute) + "-" + str(t.second)
+        if recColor:
+            if color_file:
+                color_file.close()
+            color_file = open("../../recordings/" + "color" + filenameExt + ".npy", "ab")
+            outColor = cv2.VideoWriter("../../recordings/" + "color" + filenameExt + ".avi",
+                                       cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'), frameRate,
+                                       (colorRes[width], colorRes[height]))
+        if recDepth:
+            if depth_file:
+                depth_file.close()
+            depth_file = open("../../recordings/" + "depth" + filenameExt + ".npy", "ab")
+
+        recordStartTime = time.time()
+        frameCount = 0
+        recording = True
+    if key == "q":
+        print("Recording stopped")
+        recording = False
+        frameRate = frameCount / (time.time() - recordStartTime)
+        break
+    if key == "h":
+        print("Recording halted")
+        recording = False
+    if key == "v":
+        cv2.namedWindow('Video recorder', cv2.WINDOW_AUTOSIZE)
+        if showImage:
+            print("Viewing halted")
+            showImage = False
+        else:
+            print("Viewing started")
+            showImage = True
+#except:
+#    print("Exception in the main loop", sys.exc_info()[0])
+
+#finally:
+print("Frame rate: ",frameRate)
+# Stop streaming
+pipeline.stop()
+
+if recDepth:
+    if depth_file:
+        depth_file.close()
+if recColor:
+    if color_file:
+        color_file.close()
+    outColor.release()
+
+# Closes all the frames
+cv2.destroyAllWindows()
+
+# Close the ZeroMQ socket
+socket.close()
+
+sys.exit(0)
